@@ -6,7 +6,7 @@ import { isValidObjectId } from "mongoose";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 import getVideoDuration from "../utils/ffmpeg.js";
 
-const getVideoByID = asyncHandler( async(req, res) => {
+const getVideoById = asyncHandler( async(req, res) => {
     const videoId = req.params.videoId?.trim();
     
     if (!videoId || !isValidObjectId(videoId)) {
@@ -271,7 +271,7 @@ const getAllVideos = asyncHandler( async(req, res) => {
 });
 
 export {
-    getVideoByID,
+    getVideoById,
     publishVideo,
     updateVideo,
     deleteVideo,

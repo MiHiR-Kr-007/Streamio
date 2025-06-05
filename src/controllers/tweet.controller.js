@@ -4,7 +4,7 @@ import ApiError from  "../utils/ApiError.js";
 import { isValidObjectId } from "mongoose";
 import { Tweet } from "../models/tweet.model.js";
 
-const publishTweet = asyncHandler( async(req,res)=> {
+const createTweet = asyncHandler( async(req,res)=> {
     const {content} = req.body;
 
     const ownerId = req.user._id;
@@ -171,7 +171,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
 });
 
 export {
-    publishTweet,
+    createTweet,
     updateTweet,
     deleteTweet,
     getUserTweets
