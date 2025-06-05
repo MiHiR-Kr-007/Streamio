@@ -1,12 +1,18 @@
-import ffmpeg from "fluent-ffmpeg";
+import { execFile } from "child_process";
+import ffprobePath from "ffprobe-static";
 
 const getVideoDuration = (videoPath) => {
     return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(videoPath, (err, metadata) => {
+        execFile(ffprobePath.path, [
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            videoPath
+        ], (err, stdout) => {
             if (err) {
                 reject("Error extracting video duration");
             } else {
-                resolve(metadata.format.duration);
+                resolve(parseFloat(stdout.trim()));
             }
         });
     });

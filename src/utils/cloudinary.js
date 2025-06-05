@@ -18,9 +18,16 @@ const uploadOnCloudinary = async(localFilePath) => {
         fs.unlinkSync(localFilePath)
         return response;
     }
-    catch(error){
-        fs.unlinkSync(localFilePath);
-        console.log("Problem in uploading file to Cloudinary. ",error);
+    catch (error) {
+        try {
+            if (fs.existsSync(localFilePath)) {
+                fs.unlinkSync(localFilePath); 
+            }
+        } catch (unlinkErr) {
+            console.error("Failed to clean up local file:", unlinkErr);
+        }
+
+        console.error("Problem in uploading file to Cloudinary:", error);
         return null;
     }
 }
