@@ -1,33 +1,70 @@
 import { Video } from "../models/video.model.js";
+import { Like } from "../models/like.model.js";
+import { User } from "../models/user.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from  "../utils/ApiResponse.js";
 import ApiError from  "../utils/ApiError.js";
 import { isValidObjectId } from "mongoose";
-import uploadOnCloudinary from "../utils/cloudinary.js";
+import { uploadOnCloudinary, uploadThumbnailOnCloudinary } from "../utils/cloudinary.js";
 import getVideoDuration from "../utils/ffmpeg.js";
+import mongoose from "mongoose";
+import { Subscription } from "../models/subscription.model.js";
 
-const getVideoById = asyncHandler( async(req, res) => {
+const getVideoById = asyncHandler(async(req, res) => {
     const videoId = req.params.videoId?.trim();
     
     if (!videoId || !isValidObjectId(videoId)) {
         throw new ApiError(400, "Invalid video id");
     }
 
-    const video = await Video.findById(videoId).populate("owner","name");
+    // Get the video with owner details
+    const video = await Video.findById(videoId).populate("owner", "username avatar");
 
     if(!video){
-        throw new ApiError(404, "Video not found")
+        throw new ApiError(404, "Video not found");
     }
+
+    // Get like count for the video
+    const likesCount = await Like.countDocuments({
+        video: videoId
+    });
+
+    // Check if the current user has liked the video
+    let isLiked = false;
+    if (req.user?._id) {
+        const userLike = await Like.findOne({
+            video: videoId,
+            likedBy: req.user._id
+        });
+        isLiked = !!userLike;
+    }
+
+    // Get subscriber count for the owner
+    let subscriberCount = 0;
+    if (video.owner && video.owner._id) {
+        subscriberCount = await Subscription.countDocuments({ channel: video.owner._id });
+    }
+
+    // Create response object with video details, like info, and subscriber count
+    const videoResponse = {
+        ...video.toObject(),
+        likes: likesCount,
+        isLiked: isLiked,
+        owner: {
+            ...video.owner.toObject(),
+            subscribers: subscriberCount
+        }
+    };
 
     return res
     .status(200)
     .json(
         new ApiResponse(
             200,
-            video,
+            videoResponse,
             "Video fetched successfully"
         )
-    )
+    );
 });
 
 const publishVideo = asyncHandler( async(req, res) => {
@@ -61,7 +98,7 @@ const publishVideo = asyncHandler( async(req, res) => {
             throw new ApiError(400, "Failed to upload video file to Cloudinary");
         }
 
-        const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+        const thumbnail = await uploadThumbnailOnCloudinary(thumbnailLocalPath);
         if (!thumbnail) {
             throw new ApiError(400, "Failed to upload thumbnail to Cloudinary");
         }
@@ -106,8 +143,8 @@ const updateVideo = asyncHandler( async(req, res) => {
     const updatedData = {title, description};
 
     if(req.file){
-        const thumbnailLocalPath = req.file.thumbnail[0]?.path;
-        const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+        const thumbnailLocalPath = req.file?.path;
+        const thumbnail = await uploadThumbnailOnCloudinary(thumbnailLocalPath);
 
         if(!thumbnail){
             throw new ApiError(400, "Failed to upload thumbnail to Cloudinary")
@@ -118,11 +155,7 @@ const updateVideo = asyncHandler( async(req, res) => {
 
     const video = await Video.findByIdAndUpdate(
         videoId,
-        {
-            $set : {
-                updatedData
-            }
-        },
+        updatedData,
         {
             new : true,
             runValidators : true
@@ -179,12 +212,18 @@ const togglePublishStatus = asyncHandler( async(req, res) => {
 
     const video = await Video.findByIdAndUpdate(
         videoId,
-        { $bit: { isPublished: { xor: 1 } } },
-        { new: true } 
+        [
+            {
+                $set: {
+                    isPublished: { $not: "$isPublished" }
+                }
+            }
+        ],
+        { new: true }
     );
 
-    if(!video){
-        throw new ApiError(404,"Video not found");
+    if (!video) {
+        throw new ApiError(404, "Video not found");
     }
 
     return res
@@ -204,7 +243,7 @@ const getAllVideos = asyncHandler( async(req, res) => {
 
     const match = {
         ...(query ? { title: { $regex: query, $options: "i" } } : {}), 
-        ...(userId ? { owner: mongoose.Types.ObjectId(userId) } : {}),
+        ...(userId ? { owner: new mongoose.Types.ObjectId(userId) } : {}),
     };
 
     const videos = await Video.aggregate([
@@ -270,11 +309,66 @@ const getAllVideos = asyncHandler( async(req, res) => {
     )
 });
 
+const incrementVideoViews = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+    
+    if (!videoId || !isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid video id");
+    }
+    
+    // Increment the view count
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        { $inc: { views: 1 } },
+        { new: true }
+    );
+    
+    if (!updatedVideo) {
+        return res.status(404).json({ success: false, message: 'Video not found' });
+    }
+    
+    if (req.user?._id) {
+        try {
+            await User.findByIdAndUpdate(
+                req.user._id,
+                {
+                    $pull: { watchHistory: videoId }
+                }
+            );
+            
+            await User.findByIdAndUpdate(
+                req.user._id,
+                {
+                    $push: { 
+                        watchHistory: {
+                            $each: [videoId],
+                            $position: 0
+                        }
+                    }
+                }
+            );
+        } catch (error) {
+            console.error("Error updating watch history:", error);
+        }
+    }
+    
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                { views: updatedVideo.views },
+                "Video view count incremented successfully"
+            )
+        );
+});
+
 export {
     getVideoById,
     publishVideo,
     updateVideo,
     deleteVideo,
     togglePublishStatus,
-    getAllVideos
+    getAllVideos,
+    incrementVideoViews
 }

@@ -5,6 +5,7 @@ import {Like} from "../models/like.model.js"
 import ApiError from "../utils/ApiError.js"
 import ApiResponse from "../utils/ApiResponse.js"
 import asyncHandler from "../utils/asyncHandler.js"
+import {User} from "../models/user.model.js"
 
 const getChannelStats = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
@@ -29,18 +30,16 @@ const getChannelStats = asyncHandler(async (req, res) => {
     ]);
     const totalViews = viewsAggregation?.[0]?.totalViews || 0;
 
-    if (totalViews === undefined || totalViews === null) {
-        throw new ApiError(500, "Failed to fetch total views");
-    }
-
+    // Get user's video IDs
     const userVideoIds = await Video.find({ owner: userId }).distinct("_id");
-    if (!Array.isArray(userVideoIds)) {
-        throw new ApiError(500, "Failed to fetch video IDs for likes calculation");
-    }
 
-    const totalVideoLikes = await Like.countDocuments({ video: { $in: userVideoIds } });
-    if (totalVideoLikes === undefined || totalVideoLikes === null) {
-        throw new ApiError(500, "Failed to fetch total video likes");
+    // Get total likes on user's videos
+    let totalVideoLikes = 0;
+    if (userVideoIds.length > 0) {
+        const likesCount = await Like.countDocuments({
+            video: { $in: userVideoIds }
+        });
+        totalVideoLikes = likesCount || 0;
     }
 
     const totalSubscribers = await Subscription.countDocuments({ channel: userId });
@@ -73,7 +72,7 @@ const getChannelVideos = asyncHandler(async (req, res) => {
     });
 
     if (!videos || videos.length === 0) {
-        throw new ApiError(404, "No videos found for this channel");
+        return res.status(200).json(new ApiResponse(200, [], "No videos found for this channel"));
     }
 
     return res
@@ -81,7 +80,103 @@ const getChannelVideos = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, videos, "Channel videos fetched successfully"));
 });
 
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized: User not authenticated");
+    }
+
+    try {
+        const user = await User.findById(userId)
+            .select("watchHistory")
+            .populate({
+                path: "watchHistory",
+                model: "Video",
+                select: "title description thumbnail views duration createdAt owner",
+                populate: {
+                    path: "owner",
+                    model: "User",
+                    select: "username full_name avatar"
+                }
+            });
+
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+
+        const formattedWatchHistory = user.watchHistory.map((video, index) => {
+       
+            const watchedAt = new Date(Date.now() - index * 3600000); 
+
+            return {
+                _id: `wh_${video._id}_${index}`, 
+                video: video,
+                watchedAt: watchedAt
+            };
+        });
+        
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                formattedWatchHistory,
+                "Watch history fetched successfully"
+            )
+        );
+    } catch (error) {
+        console.error("Error fetching watch history:", error);
+        throw new ApiError(500, "Failed to fetch watch history");
+    }
+});
+
+const removeFromWatchHistory = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+    const { videoId } = req.params;
+
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized: User not authenticated");
+    }
+
+    if (!videoId) {
+        throw new ApiError(400, "Video ID is required");
+    }
+
+    try {
+        // Find the user
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+
+        if (!user.watchHistory.includes(videoId)) {
+            throw new ApiError(404, "Video not found in watch history");
+        }
+
+        // Remove the video from watch history
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                $pull: { watchHistory: videoId }
+            },
+            { new: true }
+        );
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                { success: true },
+                "Video removed from watch history successfully"
+            )
+        );
+    } catch (error) {
+        console.error("Error removing video from watch history:", error);
+        throw new ApiError(500, "Failed to remove video from watch history");
+    }
+});
+
 export {
     getChannelStats, 
-    getChannelVideos
+    getChannelVideos,
+    getWatchHistory,
+    removeFromWatchHistory
 }

@@ -142,10 +142,50 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     );
 });
 
+const getLikeStatus = asyncHandler(async (req, res) => {
+    const { contentType, contentId } = req.params;
+    
+    if (!isValidObjectId(contentId)) {
+        throw new ApiError(400, `Invalid ${contentType} ID`);
+    }
+
+    if (!req.user?._id) {
+        return res.status(200).json(
+            new ApiResponse(200, { isLiked: false, likeCount: 0 }, "Like status fetched (user not logged in)")
+        );
+    }
+
+    const query = { likedBy: req.user._id };
+    if (contentType === 'v') {
+        query.video = contentId;
+    } else if (contentType === 'c') {
+        query.comment = contentId;
+    } else if (contentType === 't') {
+        query.tweet = contentId;
+    } else {
+        throw new ApiError(400, "Invalid content type");
+    }
+
+    const existingLike = await Like.findOne(query);
+    
+    const likeCount = await Like.countDocuments(query);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200, 
+            { 
+                isLiked: !!existingLike,
+                likeCount
+            }, 
+            "Like status fetched successfully"
+        )
+    );
+});
 
 export {
     toggleCommentLike,
     toggleTweetLike,
     toggleVideoLike,
-    getLikedVideos
+    getLikedVideos,
+    getLikeStatus
 }

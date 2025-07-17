@@ -10,6 +10,15 @@ const createPlaylist = asyncHandler(async(req, res) => {
         throw new ApiError(400, "Name and description are required");
     }
 
+    const existingPlaylist = await Playlist.findOne({
+        name,
+        owner: req.user._id
+    });
+
+    if(existingPlaylist){
+        throw new ApiError(400, "You already have a playlist with this name");
+    }
+
     const playlist = await Playlist.create({
         name,
         description,
@@ -22,7 +31,7 @@ const createPlaylist = asyncHandler(async(req, res) => {
 
     return res
     .status(200)
-    .json(new ApiResponse(200, "Playlist created successfully"))
+    .json(new ApiResponse(200, playlist, "Playlist created successfully"))
 });
 
 const getUserPlaylists = asyncHandler(async(req, res) => {
@@ -37,7 +46,7 @@ const getUserPlaylists = asyncHandler(async(req, res) => {
     });
 
     if(!playlists || playlists.length === 0){
-        throw new ApiError(404, "Playlist not found");
+        return res.status(200).json(new ApiResponse(200, [], "No playlists found for this user."));
     }
 
     return res
@@ -51,16 +60,26 @@ const getPlaylistById = asyncHandler(async(req, res) => {
         throw new ApiError(400, "Invalid playlist id");
     }
 
-    const playlist = await Playlist.findById(playlistId).populate("vidoes");
+    try {
+        const playlist = await Playlist.findById(playlistId).populate({
+            path: "videos",
+            populate: {
+                path: "owner",
+                select: "username full_name avatar"
+            }
+        });
 
-    if(!playlist){
-        throw new ApiError(404, "Playlist not found");
+        if(!playlist){
+            throw new ApiError(404, "Playlist not found");
+        }
+
+        return res
+        .status(200)
+        .json(new ApiResponse(200, playlist, "Playlist fetched successfully"));
+    } catch (error) {
+        console.error("Error fetching playlist:", error);
+        throw new ApiError(500, `Error fetching playlist: ${error.message}`);
     }
-
-    return res
-    .status(200)
-    .json(new ApiResponse(200, playlist, "Playlist fetched successfully"));
-
 });
 
 const addVideoToPlaylist = asyncHandler(async(req, res) => {
@@ -70,39 +89,40 @@ const addVideoToPlaylist = asyncHandler(async(req, res) => {
         throw new ApiError(400, "Invalid playlist or video id");
     }
 
-    const updatedPlaylist = Playlist.aggregate([
-        {
-            $match : {
-                _id :  mongoose.Types.ObjectId(playlistId),
-            },
-        },
-        {
-            $addFields : {
-                videos : {
-                    $setUnion : ["$videos", [mongoose.Types.ObjectId(videoId)]],
-                },
-            },
-        },
-        {
-            $merge : {
-                into : "playlists",
-            },
-        },
-    ]);
+    try {
+        // Check if the playlist exists and belongs to the current user
+        const playlist = await Playlist.findOne({
+            _id: playlistId,
+            owner: req.user._id
+        });
 
-    if(!updatedPlaylist){
-        throw new ApiError(404, "Playlist not found or video already added");
+        if (!playlist) {
+            throw new ApiError(404, "Playlist not found or you don't have permission");
+        }
+
+        // Check if the video is already in the playlist
+        if (playlist.videos.some(vid => vid.toString() === videoId)) {
+            return res
+                .status(200)
+                .json(new ApiResponse(200, playlist, "Video already in playlist"));
+        }
+
+        // Add the video to the playlist
+        playlist.videos.push(videoId);
+        
+        if (!playlist.description) {
+            playlist.description = playlist.name || "No description";
+        }
+        
+        await playlist.save();
+
+        return res
+            .status(200)
+            .json(new ApiResponse(200, playlist, "Video added to playlist successfully"));
+    } catch (error) {
+        console.error("Error adding video to playlist:", error);
+        throw new ApiError(500, `Error adding video to playlist: ${error.message}`);
     }
-
-    return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200,
-            updatedPlaylist,
-            "Video added to playlist successfully"
-        )
-    )
 });
 
 const removeVideoFromPlaylist = asyncHandler(async(req, res) => {
@@ -112,33 +132,41 @@ const removeVideoFromPlaylist = asyncHandler(async(req, res) => {
         throw new ApiError(400, "Invalid playlist or video ID");
     }
 
+    try {
+        const playlist = await Playlist.findOne({
+            _id: playlistId,
+            owner: req.user._id
+        });
 
-    const updatedPlaylist = await Playlist.findByIdAndUpdate(
-        playlistId,
-        {
-            $pull: {
-                videos: new mongoose.Types.ObjectId(videoId),
-            },
-        },
-        {
-            new: true,
-        },
-    );
+        if (!playlist) {
+            throw new ApiError(404, "Playlist not found or you don't have permission");
+        }
 
-    if (!updatedPlaylist) {
-        throw new ApiError(404, "Playlist not found");
+        // Check if the video is in the playlist
+        if (!playlist.videos.some(vid => vid.toString() === videoId)) {
+            return res
+                .status(200)
+                .json(new ApiResponse(200, playlist, "Video not in playlist"));
+        }
+
+        // Remove the video from the playlist
+        playlist.videos = playlist.videos.filter(
+            video => video.toString() !== videoId.toString()
+        );
+        
+        if (!playlist.description) {
+            playlist.description = playlist.name || "No description";
+        }
+        
+        await playlist.save();
+
+        return res
+            .status(200)
+            .json(new ApiResponse(200, playlist, "Video removed from playlist successfully"));
+    } catch (error) {
+        console.error("Error removing video from playlist:", error);
+        throw new ApiError(500, `Error removing video from playlist: ${error.message}`);
     }
-
-
-    return res
-    .status(200)
-    .json( 
-        new ApiResponse(
-            200,
-            updatedPlaylist,
-            "Video removed from playlist successfully"
-        )
-    );
 });
 
 const deletePlaylist = asyncHandler(async(req, res) => {

@@ -1,5 +1,6 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/like.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
@@ -13,7 +14,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID");
     }
 
-    const videoObjectId = mongoose.Types.ObjectId(videoId);
+    const videoObjectId = new mongoose.Types.ObjectId(videoId);
 
     const comments = await Comment.aggregate([
         {
@@ -56,16 +57,39 @@ const getVideoComments = asyncHandler(async (req, res) => {
             $limit: parseInt(limit),
         },
     ]);
-    console.log(comments);
 
     if (!comments?.length) {
-        throw new ApiError(404, "Comments are not found");
+        return res
+            .status(200)
+            .json(new ApiResponse(200, [], "No comments found for this video"));
     }
+
+    const commentsWithLikes = await Promise.all(
+        comments.map(async (comment) => {
+            const likesCount = await Like.countDocuments({
+                comment: comment._id
+            });
+
+            let isLiked = false;
+            if (req.user?._id) {
+                const userLike = await Like.findOne({
+                    comment: comment._id,
+                    likedBy: req.user._id
+                });
+                isLiked = !!userLike;
+            }
+
+            return {
+                ...comment,
+                likes: likesCount,
+                isLiked: isLiked
+            };
+        })
+    );
 
     return res
         .status(200)
-        .json(new ApiResponse(200, comments, "Comments fetched successfully"));
-
+        .json(new ApiResponse(200, commentsWithLikes, "Comments fetched successfully"));
 });
 
 const addComment = asyncHandler(async (req, res) => {

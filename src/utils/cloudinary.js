@@ -1,5 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
-import fs from "fs";
+import fs from 'fs';
 
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -7,29 +7,96 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const uploadOnCloudinary = async(localFilePath) => {
-    try{
-        if(!localFilePath) return null;
-        const response = await cloudinary.uploader.upload(localFilePath,{
-            resource_type : "auto"
-        })
-
-        // console.log("File uploaded in cloudinary :: response :: ", response);
-        fs.unlinkSync(localFilePath)
-        return response;
-    }
-    catch (error) {
-        try {
-            if (fs.existsSync(localFilePath)) {
-                fs.unlinkSync(localFilePath); 
-            }
-        } catch (unlinkErr) {
-            console.error("Failed to clean up local file:", unlinkErr);
+const deleteLocalFile = (filePath) => {
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
         }
+    } catch (err) {
+        // silent fail
+    }
+};
 
-        console.error("Problem in uploading file to Cloudinary:", error);
+const uploadOnCloudinary = async (localFilePath, options = {}) => {
+    if (!localFilePath) return null;
+
+    try {
+        const response = await cloudinary.uploader.upload(localFilePath, {
+            resource_type: 'auto',
+            format: 'webp',
+            quality: 'auto',
+            ...options
+        });
+        deleteLocalFile(localFilePath);
+        return response;
+    } catch (err) {
+        deleteLocalFile(localFilePath);
         return null;
     }
-}
+};
+
+const uploadThumbnailOnCloudinary = async (localFilePath) => {
+    if (!localFilePath) return null;
+
+    try {
+        const response = await cloudinary.uploader.upload(localFilePath, {
+            resource_type: 'image',
+            format: 'webp',
+            transformation: [
+                { width: 320, height: 180, crop: 'fill', quality: 'auto' }
+            ]
+        });
+        deleteLocalFile(localFilePath);
+        return response;
+    } catch (err) {
+        deleteLocalFile(localFilePath);
+        return null;
+    }
+};
+
+const uploadAvatarOnCloudinary = async (localFilePath) => {
+    if (!localFilePath) return null;
+
+    try {
+        const response = await cloudinary.uploader.upload(localFilePath, {
+            resource_type: 'image',
+            format: 'webp',
+            transformation: [
+                { width: 150, height: 150, crop: 'fill', quality: 'auto' }
+            ]
+        });
+        deleteLocalFile(localFilePath);
+        return response;
+    } catch (err) {
+        deleteLocalFile(localFilePath);
+        return null;
+    }
+};
+
+const uploadCoverImageOnCloudinary = async (localFilePath) => {
+    if (!localFilePath) return null;
+
+    try {
+        const response = await cloudinary.uploader.upload(localFilePath, {
+            resource_type: 'image',
+            format: 'webp',
+            transformation: [
+                { width: 1200, height: 300, crop: 'fill', quality: 'auto' }
+            ]
+        });
+        deleteLocalFile(localFilePath);
+        return response;
+    } catch (err) {
+        deleteLocalFile(localFilePath);
+        return null;
+    }
+};
+
+export {
+    uploadOnCloudinary,
+    uploadThumbnailOnCloudinary,
+    uploadAvatarOnCloudinary,
+    uploadCoverImageOnCloudinary
+};
 
 export default uploadOnCloudinary;
