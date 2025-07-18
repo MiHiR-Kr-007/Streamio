@@ -49,53 +49,53 @@ app.use("/api/v1/playlist", playlistRouter)
 app.use("/api/v1/dashboard", dashboardRouter)
 
 // Error handling middleware
-// app.use((err, req, res, next) => {
-//     console.error('=== Error Handling Middleware ===');
-//     console.error('Error type:', err.constructor.name);
-//     console.error('Error message:', err.message);
-//     console.error('Error stack:', err.stack);
-//     console.error('Request method:', req.method);
-//     console.error('Request URL:', req.url);
-//     console.error('Request headers:', req.headers);
-//     console.error('Request body:', req.body);
-//     console.error('Request files:', req.files);
+app.use((err, req, res, next) => {
+    console.error('=== Error Handling Middleware ===');
+    console.error('Error type:', err.constructor.name);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    console.error('Request method:', req.method);
+    console.error('Request URL:', req.url);
+    console.error('Request headers:', req.headers);
+    console.error('Request body:', req.body);
+    console.error('Request files:', req.files);
     
-//     if (err instanceof ApiError) {
-//         console.error('ApiError detected, status:', err.statusCode);
-//         return res.status(err.statusCode).json({
-//             success: false,
-//             message: err.message,
-//             errors: err.errors,
-//             statusCode: err.statusCode
-//         });
-//     }
+    if (err instanceof ApiError) {
+        console.error('ApiError detected, status:', err.statusCode);
+        return res.status(err.statusCode).json({
+            success: false,
+            message: err.message,
+            errors: err.errors,
+            statusCode: err.statusCode
+        });
+    }
     
-//     // Handle multer errors
-//     if (err.code === 'LIMIT_FILE_SIZE') {
-//         console.error('Multer file size error');
-//         return res.status(400).json({
-//             success: false,
-//             message: 'File too large',
-//             statusCode: 400
-//         });
-//     }
+    // Handle multer errors
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        console.error('Multer file size error');
+        return res.status(400).json({
+            success: false,
+            message: 'File too large',
+            statusCode: 400
+        });
+    }
     
-//     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-//         console.error('Multer unexpected file error');
-//         return res.status(400).json({
-//             success: false,
-//             message: 'Unexpected file field',
-//             statusCode: 400
-//         });
-//     }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        console.error('Multer unexpected file error');
+        return res.status(400).json({
+            success: false,
+            message: 'Unexpected file field',
+            statusCode: 400
+        });
+    }
     
-//     // Default error
-//     console.error('Default error handler');
-//     return res.status(500).json({
-//         success: false,
-//         message: 'Internal server error',
-//         statusCode: 500
-//     });
-// });
+    // Default error
+    console.error('Default error handler');
+    return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        statusCode: 500
+    });
+});
 
 export {app}

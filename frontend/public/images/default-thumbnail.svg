@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" fill="none">
+  <rect width="320" height="180" fill="#E5E7EB"/>
+  <path d="M160 90C160 99.9411 151.941 108 142 108C132.059 108 124 99.9411 124 90C124 80.0589 132.059 72 142 72C151.941 72 160 80.0589 160 90Z" fill="#9CA3AF"/>
+  <path d="M156 90L180 75V105L156 90Z" fill="#9CA3AF"/>
+  <text x="160" y="140" text-anchor="middle" font-family="Arial" font-size="16" fill="#6B7280">Video Thumbnail</text>
+</svg> 
