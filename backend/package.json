@@ -4,9 +4,10 @@
   "description": "a video streaming platform",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "dev": "nodemon -r dotenv/config src/index"
-  },
+"scripts": {
+"start": "node src/index.js",
+"dev": "nodemon -r dotenv/config src/index.js"
+},
   "keywords": [
     "backend"
   ],
