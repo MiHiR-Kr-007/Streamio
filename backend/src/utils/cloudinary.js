@@ -23,8 +23,8 @@ const uploadOnCloudinary = async (localFilePath, options = {}) => {
     try {
         const response = await cloudinary.uploader.upload(localFilePath, {
             resource_type: 'auto',
-            format: 'webp',
-            quality: 'auto',
+            // format: 'webp',
+            // quality: 'auto',
             ...options
         });
         deleteLocalFile(localFilePath);

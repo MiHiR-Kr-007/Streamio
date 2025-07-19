@@ -6,6 +6,7 @@ import ApiResponse from  "../utils/ApiResponse.js";
 import ApiError from  "../utils/ApiError.js";
 import { isValidObjectId } from "mongoose";
 import { uploadOnCloudinary, uploadThumbnailOnCloudinary } from "../utils/cloudinary.js";
+import fs from "fs";
 import getVideoDuration from "../utils/ffmpeg.js";
 import mongoose from "mongoose";
 import { Subscription } from "../models/subscription.model.js";
@@ -82,10 +83,12 @@ const publishVideo = asyncHandler( async(req, res) => {
     const videoFileLocalPath = req.files?.videoFile[0]?.path;
 
     if (!videoFileLocalPath) {
+        if (thumbnailLocalPath) fs.unlinkSync(thumbnailLocalPath);
         throw new ApiError(400, "Video file is required");
     }
 
     if (!thumbnailLocalPath) {
+        if (videoFileLocalPath) fs.unlinkSync(videoFileLocalPath);
         throw new ApiError(400, "Thumbnail is required");
     }
 
@@ -95,6 +98,7 @@ const publishVideo = asyncHandler( async(req, res) => {
 
         const videoFile = await uploadOnCloudinary(videoFileLocalPath);
         if (!videoFile) {
+            if (fs.existsSync(thumbnailLocalPath)) fs.unlinkSync(thumbnailLocalPath);
             throw new ApiError(400, "Failed to upload video file to Cloudinary");
         }
 
@@ -118,6 +122,8 @@ const publishVideo = asyncHandler( async(req, res) => {
         .json(new ApiResponse(201, videoDoc, "Video published Successfully"));
     }
     catch(error){
+        if (videoFileLocalPath && fs.existsSync(videoFileLocalPath)) fs.unlinkSync(videoFileLocalPath);
+        if (thumbnailLocalPath && fs.existsSync(thumbnailLocalPath)) fs.unlinkSync(thumbnailLocalPath);
         throw new ApiError(500, error?.message || "Something went wrong")
     }
 
